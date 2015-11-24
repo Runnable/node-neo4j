@@ -1,0 +1,23 @@
+{
+  "name": "runna4j",
+  "version": "0.0.0",
+  "description": "Neo4j client",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Runnable/node-neo4j.git"
+  },
+  "keywords": [
+    "neo4j",
+    "graph"
+  ],
+  "author": "Bryan Kendall <bryan@runnable.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Runnable/node-neo4j/issues"
+  },
+  "homepage": "https://github.com/Runnable/node-neo4j#readme"
+}
