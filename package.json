@@ -4,7 +4,10 @@
   "description": "Neo4j client",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "format": "standard --format",
+    "lint": "standard --verbose",
+    "test": "npm run lint && npm run unit",
+    "unit": "mocha unit/"
   },
   "repository": {
     "type": "git",
@@ -19,5 +22,28 @@
   "bugs": {
     "url": "https://github.com/Runnable/node-neo4j/issues"
   },
-  "homepage": "https://github.com/Runnable/node-neo4j#readme"
+  "homepage": "https://github.com/Runnable/node-neo4j#readme",
+  "standard": {
+    "globals": [
+      "before",
+      "beforeEach",
+      "after",
+      "afterEach",
+      "describe",
+      "it"
+    ]
+  },
+  "devDependencies": {
+    "chai": "^3.4.1",
+    "mocha": "^2.3.4",
+    "sinon": "^1.17.2",
+    "standard": "^5.4.1"
+  },
+  "dependencies": {
+    "101": "^1.2.0",
+    "async": "^1.5.0",
+    "blacklight": "^1.1.1",
+    "cypher-stream": "^0.3.0",
+    "keypather": "^1.10.1"
+  }
 }
