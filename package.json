@@ -4,11 +4,12 @@
   "description": "Neo4j client",
   "main": "index.js",
   "scripts": {
-    "coverage": "istanbul cover _mocha -- unit/",
+    "coverage": "istanbul cover _mocha -- test/unit",
+    "coverage-check": "istanbul check-coverage && echo 'Coverage check successful!'",
     "format": "standard --format",
     "lint": "standard --verbose",
     "test": "npm run lint && npm run unit",
-    "unit": "mocha unit/"
+    "unit": "mocha test/unit"
   },
   "repository": {
     "type": "git",
@@ -46,6 +47,7 @@
     "async": "^1.5.0",
     "blacklight": "^1.1.1",
     "cypher-stream": "^0.3.0",
+    "debug": "^2.2.0",
     "keypather": "^1.10.1"
   }
 }
