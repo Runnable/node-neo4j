@@ -1,6 +1,7 @@
 'use strict'
 
 var assert = require('chai').assert
+var EventEmitter = require('events')
 var sinon = require('sinon')
 
 var Runna4j = require('../')
@@ -9,6 +10,29 @@ describe('Runna4j', function () {
   var graph
   before(function () {
     graph = new Runna4j('localhost:7474')
+  })
+
+  describe('constructor', function () {
+    it('should accept a host', function () {
+      var g = new Runna4j('localhost:1234')
+      assert.ok(g)
+      // FIXME(bkendall): given cypher-stream, there's no way to check this
+    })
+
+    describe('with NEO4J in env', function () {
+      beforeEach(function () {
+        process.env.NEO4J = 'localhost:5678'
+      })
+      afterEach(function () {
+        process.env.NEO4J = undefined
+      })
+
+      it('should accept a host in the env', function () {
+        var g = new Runna4j()
+        assert.ok(g)
+        // FIXME(bkendall): given cypher-stream, there's no way to check this
+      })
+    })
   })
 
   describe('getNodeCount', function () {
@@ -33,6 +57,27 @@ describe('Runna4j', function () {
           sinon.match.func
         )
         done()
+      })
+    })
+
+    describe('query errors', function () {
+      it('should return an error if query errored', function (done) {
+        var error = new Error('foobar')
+        graph._query.yieldsAsync(error)
+        graph.getNodeCount('Foo', function (err) {
+          assert.equal(err, error)
+          done()
+        })
+      })
+
+      it('should return -1 if the count was not returned', function (done) {
+        var data = {}
+        graph._query.yieldsAsync(null, data)
+        graph.getNodeCount('Foo', function (err, count) {
+          assert.isNull(err)
+          assert.equal(count, -1)
+          done()
+        })
       })
     })
   })
@@ -61,6 +106,29 @@ describe('Runna4j', function () {
         'a.id={props}.id AND ' +
         'a.someValue={props}.someValue AND ' +
         'a.other_value={props}.other_value',
+        'RETURN a'
+      ].join('\n')
+      graph.getNodes(start, steps, function (err, data) {
+        assert.isNull(err)
+        assert.isNull(data)
+        sinon.assert.calledOnce(graph._query)
+        sinon.assert.calledWithExactly(
+          graph._query,
+          expectedQuery,
+          { props: start.props },
+          sinon.match.func
+        )
+        done()
+      })
+    })
+
+    it('should produce correct queries looking for 1 node with no props (no steps)', function (done) {
+      var start = {
+        label: 'Foo'
+      }
+      var steps = []
+      var expectedQuery = [
+        'MATCH (a:Foo)',
         'RETURN a'
       ].join('\n')
       graph.getNodes(start, steps, function (err, data) {
@@ -200,6 +268,47 @@ describe('Runna4j', function () {
       })
     })
 
+    it('should follow steps in with edge properties', function (done) {
+      var start = {
+        label: 'Foo'
+      }
+      var steps = [{
+        In: {
+          edge: {
+            label: 'dependsOn',
+            props: { hostname: 'somehostname' }
+          },
+          node: {
+            label: 'Foo',
+            props: { someValue: 'somename' }
+          }
+        }
+      }]
+      var expectedQuery = [
+        'MATCH (a:Foo)<-[b:dependsOn]-(c:Foo)',
+        'WHERE ' +
+        'b.hostname={bProps}.hostname AND ' +
+        'c.someValue={cProps}.someValue',
+        'RETURN a,b,c'
+      ].join('\n')
+      graph.getNodes(start, steps, function (err, data) {
+        assert.isNull(err)
+        assert.isNull(data)
+        sinon.assert.calledOnce(graph._query)
+        sinon.assert.calledWithExactly(
+          graph._query,
+          expectedQuery,
+          {
+            props: start.props,
+            bProps: steps[0].In.edge.props,
+            cProps: steps[0].In.node.props
+          },
+          sinon.match.func
+        )
+        done()
+      })
+    })
+
     it('should follow steps with edge properties', function (done) {
       var start = {
         label: 'Foo',
@@ -290,6 +399,82 @@ describe('Runna4j', function () {
           sinon.match.func
         )
         done()
+      })
+    })
+
+    it('returns the last node', function (done) {
+      var start = { label: 'Foo' }
+      var steps = []
+      var data = {
+        a: 'foo',
+        b: 'bar'
+      }
+      graph._query.yieldsAsync(null, data)
+      graph.getNodes(start, steps, function (err, nodes) {
+        assert.isNull(err)
+        assert.deepEqual(nodes, 'foo')
+        done()
+      })
+    })
+
+    describe('bad steps', function () {
+      it('should do nothing with malformed steps', function (done) {
+        var start = {
+          label: 'Foo',
+          props: {
+            id: '1234567890asdf',
+            someValue: 'sample-node',
+            other_value: 1234
+          }
+        }
+        var steps = [{
+          foo: 'bar'
+        }]
+        var expectedQuery = [
+          'MATCH (a:Foo)',
+          'WHERE ' +
+          'a.id={props}.id AND ' +
+          'a.someValue={props}.someValue AND ' +
+          'a.other_value={props}.other_value',
+          'RETURN a'
+        ].join('\n')
+        graph.getNodes(start, steps, function (err, data) {
+          assert.isNull(err)
+          assert.isNull(data)
+          sinon.assert.calledOnce(graph._query)
+          sinon.assert.calledWithExactly(
+            graph._query,
+            expectedQuery,
+            { props: start.props },
+            sinon.match.func
+          )
+          done()
+        })
+      })
+    })
+
+    describe('query failures', function () {
+      it('should return an error if query errored', function (done) {
+        var start = { label: 'Foo' }
+        var steps = []
+        var error = new Error('foobar')
+        graph._query.yieldsAsync(error)
+        graph.getNodes(start, steps, function (err, data) {
+          assert.equal(err, error)
+          done()
+        })
+      })
+
+      it('should return -1 if the count was not returned', function (done) {
+        var start = { label: 'Foo' }
+        var steps = []
+        var data = {}
+        graph._query.yieldsAsync(null, data)
+        graph.getNodes(start, steps, function (err, nodes) {
+          assert.isNull(err)
+          assert.deepEqual(nodes, [])
+          done()
+        })
       })
     })
   })
@@ -401,6 +586,43 @@ describe('Runna4j', function () {
           sinon.match.func
         )
         done()
+      })
+    })
+
+    describe('query errors', function () {
+      var node = {
+        label: 'Foo',
+        props: {
+          id: '1234567890asdf'
+        }
+      }
+
+      it('should return an error if query errored', function (done) {
+        var error = new Error('foobar')
+        graph._query.yieldsAsync(error)
+        graph.writeNode(node, function (err) {
+          assert.equal(err, error)
+          done()
+        })
+      })
+
+      it('should return error if node not created (no data)', function (done) {
+        graph._query.yieldsAsync(null, null)
+        graph.writeNode(node, function (err) {
+          assert.ok(err)
+          assert.match(err.message, /node.+not created/i)
+          done()
+        })
+      })
+
+      it('should return error if node not created', function (done) {
+        var data = { n: false }
+        graph._query.yieldsAsync(null, data)
+        graph.writeNode(node, function (err) {
+          assert.ok(err)
+          assert.match(err.message, /node.+not created/i)
+          done()
+        })
       })
     })
   })
@@ -574,6 +796,78 @@ describe('Runna4j', function () {
         done()
       })
     })
+
+    describe('query failure', function () {
+      var startNode = {
+        label: 'Foo',
+        props: {
+          id: '1234567890asdf'
+        }
+      }
+      var connection = {
+        label: 'dependsOn'
+      }
+      var endNode = {
+        label: 'Foo',
+        props: {
+          id: 'fdsa0987654321'
+        }
+      }
+      var data
+      beforeEach(function () {
+        data = {
+          a: true,
+          r: true,
+          b: true
+        }
+        graph._query.yieldsAsync(null, data)
+      })
+
+      it('should return the error', function (done) {
+        var error = new Error('foobar')
+        graph._query.yieldsAsync(error)
+        graph.writeConnection(startNode, connection, endNode, function (err) {
+          assert.equal(err, error)
+          done()
+        })
+      })
+
+      describe('missing a', function () {
+        beforeEach(function () { data.a = false })
+
+        it('should return an error if no data was returned', function (done) {
+          graph.writeConnection(startNode, connection, endNode, function (err) {
+            assert.ok(err)
+            assert.match(err.message, /relationship.+not created/i)
+            done()
+          })
+        })
+      })
+
+      describe('missing r', function () {
+        beforeEach(function () { data.r = false })
+
+        it('should return an error if no data was returned', function (done) {
+          graph.writeConnection(startNode, connection, endNode, function (err) {
+            assert.ok(err)
+            assert.match(err.message, /relationship.+not created/i)
+            done()
+          })
+        })
+      })
+
+      describe('missing b', function () {
+        beforeEach(function () { data.b = false })
+
+        it('should return an error if no data was returned', function (done) {
+          graph.writeConnection(startNode, connection, endNode, function (err) {
+            assert.ok(err)
+            assert.match(err.message, /relationship.+not created/i)
+            done()
+          })
+        })
+      })
+    })
   })
 
   describe('deleteConnections', function () {
@@ -664,6 +958,102 @@ describe('Runna4j', function () {
           sinon.match.func
         )
         done()
+      })
+    })
+  })
+
+  describe('_query', function () {
+    var emitter
+    beforeEach(function () {
+      emitter = new EventEmitter()
+      emitter.commit = function () { emitter.emit('end') }
+      sinon.spy(emitter, 'commit')
+      emitter.write = sinon.stub()
+      sinon.stub(graph.cypher, 'transaction').returns(emitter)
+    })
+    afterEach(function () {
+      graph.cypher.transaction.restore()
+    })
+
+    it('should get the transaction from cypher', function (done) {
+      graph._query('query', 'params', function (err) {
+        assert.isNull(err)
+        sinon.assert.calledOnce(graph.cypher.transaction)
+        done()
+      })
+    })
+
+    it('should write the passed query and params', function (done) {
+      graph._query('query', 'params', function (err) {
+        assert.isNull(err)
+        sinon.assert.calledOnce(emitter.write)
+        sinon.assert.calledWithExactly(
+          emitter.write,
+          {
+            statement: 'query',
+            parameters: 'params'
+          }
+        )
+        done()
+      })
+    })
+
+    it('should ignore empty data events', function (done) {
+      emitter.commit = function () {
+        emitter.emit('data')
+        emitter.emit('end')
+      }
+      graph._query({}, {}, function (err, result) {
+        assert.isNull(err)
+        assert.deepEqual(result, {})
+        done()
+      })
+    })
+
+    it('should return the data from the data events', function (done) {
+      emitter.commit = function () {
+        emitter.emit('data', { 'foo': 'bar' })
+        emitter.emit('end')
+      }
+      graph._query({}, {}, function (err, result) {
+        assert.isNull(err)
+        assert.deepEqual(result, { foo: [ 'bar' ] })
+        done()
+      })
+    })
+
+    it('should collect data events', function (done) {
+      emitter.commit = function () {
+        emitter.emit('data', { 'foo': 'bar' })
+        emitter.emit('data', { 'foo': 'baz' })
+        emitter.emit('end')
+      }
+      graph._query({}, {}, function (err, result) {
+        assert.isNull(err)
+        assert.deepEqual(result, { foo: [ 'bar', 'baz' ] })
+        done()
+      })
+    })
+
+    it('should commit the transaction', function (done) {
+      graph._query({}, {}, function (err) {
+        assert.isNull(err)
+        sinon.assert.calledOnce(emitter.commit)
+        done()
+      })
+    })
+
+    describe('errors', function () {
+      it('should return errors', function (done) {
+        var error = new Error('foobar')
+        emitter.commit = function () {
+          emitter.emit('error', error)
+          emitter.emit('end')
+        }
+        graph._query({}, {}, function (err) {
+          assert.equal(err, error)
+          done()
+        })
       })
     })
   })
