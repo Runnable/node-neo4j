@@ -7,9 +7,8 @@ var Runna4j = require('../')
 
 describe('Runna4j', function () {
   var graph
-  before(function (done) {
+  before(function () {
     graph = new Runna4j('localhost:7474')
-    done()
   })
 
   describe('getNodeCount', function () {
@@ -39,13 +38,11 @@ describe('Runna4j', function () {
   })
 
   describe('getNodes', function () {
-    beforeEach(function (done) {
+    beforeEach(function () {
       sinon.stub(graph, '_query').yieldsAsync(null, null)
-      done()
     })
-    afterEach(function (done) {
+    afterEach(function () {
       graph._query.restore()
-      done()
     })
 
     it('should produce correct queries looking for 1 node (no steps)', function (done) {
@@ -297,15 +294,60 @@ describe('Runna4j', function () {
     })
   })
 
+  describe('writeNodes', function () {
+    beforeEach(function () {
+      sinon.stub(graph, '_writeUniqueNode').yieldsAsync(null)
+    })
+    afterEach(function () {
+      graph._writeUniqueNode.restore()
+    })
+
+    it('should just return with an empty list', function (done) {
+      var nodes = []
+      graph.writeNodes(nodes, function (err) {
+        assert.isNull(err)
+        sinon.assert.notCalled(graph._writeUniqueNode)
+        done()
+      })
+    })
+
+    it('should simply call into write connection for a list', function (done) {
+      var nodes = [{
+        label: 'Foo',
+        props: {
+          id: '1234567890asdf'
+        }
+      }, {
+        label: 'Bar',
+        props: {
+          id: 'DeadBeef'
+        }
+      }]
+      graph.writeNodes(nodes, function (err) {
+        assert.isNull(err)
+        sinon.assert.calledTwice(graph._writeUniqueNode)
+        sinon.assert.calledWithExactly(
+          graph._writeUniqueNode,
+          nodes[0],
+          sinon.match.func
+        )
+        sinon.assert.calledWithExactly(
+          graph._writeUniqueNode,
+          nodes[1],
+          sinon.match.func
+        )
+        done()
+      })
+    })
+  })
+
   describe('writeNode', function () {
-    beforeEach(function (done) {
+    beforeEach(function () {
       // fake the node being created
       sinon.stub(graph, '_query').yieldsAsync(null, { n: true })
-      done()
     })
-    afterEach(function (done) {
+    afterEach(function () {
       graph._query.restore()
-      done()
     })
 
     it('should make a query to write in a unique node', function (done) {
@@ -364,14 +406,12 @@ describe('Runna4j', function () {
   })
 
   describe('deleteNodeAndConnections', function () {
-    beforeEach(function (done) {
+    beforeEach(function () {
       // fake the node being created
       sinon.stub(graph, '_query').yieldsAsync(null, { n: true })
-      done()
     })
-    afterEach(function (done) {
+    afterEach(function () {
       graph._query.restore()
-      done()
     })
 
     it('should make a query to delete the node and all connections', function (done) {
@@ -393,6 +433,50 @@ describe('Runna4j', function () {
           graph._query,
           expectedQuery,
           { props: node.props },
+          sinon.match.func
+        )
+        done()
+      })
+    })
+  })
+
+  describe('writeConnections', function () {
+    beforeEach(function () {
+      sinon.stub(graph, '_createUniqueRelationship').yieldsAsync(null)
+    })
+    afterEach(function () {
+      graph._createUniqueRelationship.restore()
+    })
+
+    it('should just return with an empty list', function (done) {
+      var connections = []
+      graph.writeConnections(connections, function (err) {
+        assert.isNull(err)
+        sinon.assert.notCalled(graph._createUniqueRelationship)
+        done()
+      })
+    })
+
+    it('should simply call into write connection for a list', function (done) {
+      var connections = [
+        ['Foo', 'bar', 'Baz'],
+        ['Abc', 'def', 'Ghi']
+      ]
+      graph.writeConnections(connections, function (err) {
+        assert.isNull(err)
+        sinon.assert.calledTwice(graph._createUniqueRelationship)
+        sinon.assert.calledWithExactly(
+          graph._createUniqueRelationship,
+          'Foo',
+          'bar',
+          'Baz',
+          sinon.match.func
+        )
+        sinon.assert.calledWithExactly(
+          graph._createUniqueRelationship,
+          'Abc',
+          'def',
+          'Ghi',
           sinon.match.func
         )
         done()
@@ -492,14 +576,61 @@ describe('Runna4j', function () {
     })
   })
 
-  describe('deleteConnection', function () {
-    beforeEach(function (done) {
-      sinon.stub(graph, '_query').yieldsAsync(null, { a: true, b: true, r: true })
-      done()
+  describe('deleteConnections', function () {
+    beforeEach(function () {
+      sinon.stub(graph, '_deleteConnection').yieldsAsync(null)
     })
-    afterEach(function (done) {
+    afterEach(function () {
+      graph._deleteConnection.restore()
+    })
+
+    it('should just return with an empty list', function (done) {
+      var connections = []
+      graph.deleteConnections(connections, function (err) {
+        assert.isNull(err)
+        sinon.assert.notCalled(graph._deleteConnection)
+        done()
+      })
+    })
+
+    it('should simply call into delete connection for a list', function (done) {
+      var connections = [{
+        subject: 'Foo',
+        predicate: 'bar',
+        object: 'Baz'
+      }, {
+        subject: 'Abc',
+        predicate: 'def',
+        object: 'Ghi'
+      }]
+      graph.deleteConnections(connections, function (err) {
+        assert.isNull(err)
+        sinon.assert.calledTwice(graph._deleteConnection)
+        sinon.assert.calledWithExactly(
+          graph._deleteConnection,
+          { id: 'Foo' },
+          'bar',
+          { id: 'Baz' },
+          sinon.match.func
+        )
+        sinon.assert.calledWithExactly(
+          graph._deleteConnection,
+          { id: 'Abc' },
+          'def',
+          { id: 'Ghi' },
+          sinon.match.func
+        )
+        done()
+      })
+    })
+  })
+
+  describe('deleteConnection', function () {
+    beforeEach(function () {
+      sinon.stub(graph, '_query').yieldsAsync(null, { a: true, b: true, r: true })
+    })
+    afterEach(function () {
       graph._query.restore()
-      done()
     })
 
     it('should make a query to remove a connection', function (done) {
