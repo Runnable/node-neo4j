@@ -2,9 +2,13 @@
 
 var assert = require('chai').assert
 var EventEmitter = require('events')
+if (EventEmitter.EventEmitter) {
+  // node v0.10
+  EventEmitter = EventEmitter.EventEmitter
+}
 var sinon = require('sinon')
 
-var Runna4j = require('../')
+var Runna4j = require('../../')
 
 describe('Runna4j', function () {
   var graph
