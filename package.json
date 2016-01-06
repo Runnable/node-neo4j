@@ -46,6 +46,7 @@
     "async": "^1.5.0",
     "blacklight": "^1.1.1",
     "cypher-stream": "^0.3.0",
+    "debug": "^2.2.0",
     "keypather": "^1.10.1"
   }
 }
